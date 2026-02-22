@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>StreetSafe Equity Lens</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+
+  header { background: #1e293b; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #334155; flex-shrink: 0; }
+  header h1 { font-size: 1.2rem; font-weight: 700; color: #38bdf8; }
+  header p { font-size: 0.75rem; color: #94a3b8; }
+  .header-btns { display: flex; gap: 8px; }
+  .btn { border: none; color: white; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.82rem; }
+  .btn-voice { background: #7c3aed; }
+  .btn-voice:hover { background: #6d28d9; }
+  .btn-tab { background: #1e3a5f; border: 1px solid #334155; color: #94a3b8; }
+  .btn-tab.active { background: #0ea5e9; color: white; border-color: #0ea5e9; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+  #map { flex: 1; }
+
+  .sidebar { width: 350px; background: #1e293b; display: flex; flex-direction: column; overflow-y: auto; border-left: 1px solid #334155; }
+
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 1px solid #334155; background: #0f172a; flex-shrink: 0; }
+  .tab { flex: 1; padding: 10px 6px; font-size: 0.75rem; text-align: center; cursor: pointer; color: #64748b; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .tab.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+  .tab-content { display: none; flex-direction: column; flex: 1; }
+  .tab-content.active { display: flex; flex-direction: column; }
+
+  /* Legend */
+  .section { padding: 14px; border-bottom: 1px solid #334155; }
+  .section h3 { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+  .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.82rem; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Top 5 */
+  .street-item { background: #0f172a; border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer; border: 1px solid #334155; transition: border-color 0.2s; }
+  .street-item:hover { border-color: #38bdf8; }
+  .street-name { font-size: 0.88rem; font-weight: 600; }
+  .street-meta { font-size: 0.74rem; color: #94a3b8; margin-top: 3px; }
+  .risk-badge { float: right; padding: 2px 8px; border-radius: 12px; font-size: 0.74rem; font-weight: 700; }
+
+  /* AI explain */
+  .explain-box { background: #0f172a; border-radius: 8px; padding: 12px; font-size: 0.84rem; line-height: 1.65; color: #cbd5e1; min-height: 90px; border: 1px solid #334155; }
+  .explain-hint { color: #475569; font-style: italic; }
+  .loading { color: #38bdf8; }
+
+  /* Equity card */
+  .equity-card { background: #172554; border: 1px solid #1d4ed8; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .equity-card h3 { font-size: 0.75rem; color: #93c5fd; text-transform: uppercase; margin-bottom: 10px; }
+  .equity-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .eq-city { text-align: center; flex: 1; }
+  .eq-city .city-name { font-size: 0.78rem; color: #94a3b8; }
+  .eq-city .city-val { font-size: 1.1rem; font-weight: 700; color: #38bdf8; }
+  .eq-city .city-sub { font-size: 0.7rem; color: #64748b; }
+  .equity-insight { font-size: 0.78rem; color: #93c5fd; line-height: 1.55; margin-top: 8px; border-top: 1px solid #1d4ed8; padding-top: 8px; }
+  .gateway-badge { background: #1e3a5f; border: 1px solid #0ea5e9; border-radius: 6px; padding: 8px 10px; font-size: 0.76rem; color: #7dd3fc; margin-bottom: 10px; line-height: 1.5; }
+
+  /* Limitations */
+  .limit-item { background: #0f172a; border-left: 3px solid #f97316; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.8rem; line-height: 1.55; color: #cbd5e1; }
+  .limit-item .limit-title { font-weight: 700; color: #fb923c; margin-bottom: 4px; font-size: 0.78rem; text-transform: uppercase; }
+  .ethics-item { background: #0f172a; border-left: 3px solid #22c55e; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.8rem; line-height: 1.55; color: #cbd5e1; }
+  .ethics-item .ethics-title { font-weight: 700; color: #4ade80; margin-bottom: 4px; font-size: 0.78rem; text-transform: uppercase; }
+
+  /* Data sources */
+  .source-item { background: #0f172a; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border: 1px solid #334155; font-size: 0.8rem; line-height: 1.55; }
+  .source-title { font-weight: 700; color: #38bdf8; margin-bottom: 3px; }
+  .source-meta { color: #64748b; font-size: 0.74rem; }
+  .source-badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 0.68rem; font-weight: 600; margin-top: 4px; }
+  .badge-green { background: #14532d; color: #4ade80; }
+  .badge-blue  { background: #1e3a5f; color: #7dd3fc; }
+
+  footer { background: #1e293b; padding: 6px 16px; font-size: 0.7rem; color: #475569; border-top: 1px solid #334155; flex-shrink: 0; }
+  #loading-bar { position: fixed; top: 0; left: 0; height: 3px; background: #38bdf8; transition: width 0.3s; z-index: 9999; }
+</style>
+</head>
+<body>
+<div id="loading-bar" style="width:0%"></div>
+
+<header>
+  <div>
+    <h1>🛣️ StreetSafe Equity Lens</h1>
+    <p>Beverly, MA · Infrastructure Risk + Equity Analysis · Cyvl × Census ACS 2023</p>
+  </div>
+  <div class="header-btns">
+    <button class="btn btn-voice" onclick="playVoice()">🔊 Top Insight</button>
+  </div>
+</header>
+
+<div class="main">
+  <div id="map"></div>
+
+  <div class="sidebar">
+    <!-- Tab bar -->
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('map-tab', this)">🗺 Map</div>
+      <div class="tab" onclick="switchTab('equity-tab', this)">⚖️ Equity</div>
+      <div class="tab" onclick="switchTab('limits-tab', this)">⚠️ Limits</div>
+      <div class="tab" onclick="switchTab('data-tab', this)">📚 Data</div>
+    </div>
+
+    <!-- TAB 1: Map view -->
+    <div id="map-tab" class="tab-content active">
+      <div class="section">
+        <h3>Risk Level</h3>
+        <div class="legend-row"><div class="dot" style="background:#22c55e"></div> Low (0–3) · Good pavement</div>
+        <div class="legend-row"><div class="dot" style="background:#eab308"></div> Moderate (3–5) · Fair condition</div>
+        <div class="legend-row"><div class="dot" style="background:#f97316"></div> High (5–7) · Poor condition</div>
+        <div class="legend-row"><div class="dot" style="background:#ef4444"></div> Critical (7–10) · Failed/Very Poor</div>
+      </div>
+
+      <div class="section">
+        <h3>⚠️ Top 5 Priority Streets</h3>
+        <div id="top5-list">Loading...</div>
+      </div>
+
+      <div class="section" style="flex:1">
+        <h3>🤖 AI Analysis</h3>
+        <div class="explain-box" id="explain-box">
+          <span class="explain-hint">Click any street on the map to get an AI-powered infrastructure analysis.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Equity -->
+    <div id="equity-tab" class="tab-content">
+      <div class="section">
+        <h3>Gateway Cities Context</h3>
+        <div class="gateway-badge">
+          📍 Beverly, MA is the focus city for infrastructure analysis. Lawrence, MA — a designated <strong>Massachusetts Gateway City</strong> — is shown for equity comparison. Gateway Cities have higher immigrant populations and lower median incomes, making infrastructure failures more impactful.
+        </div>
+        <div id="equity-content">Loading equity data...</div>
+      </div>
+      <div class="section">
+        <h3>Why This Matters</h3>
+        <div style="font-size:0.8rem;line-height:1.65;color:#94a3b8">
+          Cities with higher foreign-born populations and lower incomes are disproportionately harmed by infrastructure failures — residents are less able to absorb costs of vehicle damage, healthcare from injuries, or reduced mobility. This tool helps cities prioritize repairs where the <strong style="color:#e2e8f0">human cost of inaction is highest</strong>.
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Limitations -->
+    <div id="limits-tab" class="tab-content">
+      <div class="section">
+        <h3>⚠️ Data Limitations</h3>
+
+        <div class="limit-item">
+          <div class="limit-title">Geographic Coverage</div>
+          Cyvl data covers Beverly, MA only (168 miles of roads). Results cannot be generalized to other cities without additional Cyvl scans.
+        </div>
+
+        <div class="limit-item">
+          <div class="limit-title">Census Data Lag</div>
+          ACS demographic data is from 2023 5-year estimates. Population and income figures may not reflect current conditions.
+        </div>
+
+        <div class="limit-item">
+          <div class="limit-title">Risk Score Simplification</div>
+          The IEPS risk score uses PCI label + sidewalk condition. It does not account for traffic volume, pedestrian density, or seasonal factors.
+        </div>
+
+        <div class="limit-item">
+          <div class="limit-title">Asset Condition Matching</div>
+          Sidewalk conditions are matched to road segments by proximity — not a direct 1:1 mapping. Some segments show "None" where no nearby asset data exists.
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>✅ Ethics & Responsibility</h3>
+
+        <div class="ethics-item">
+          <div class="ethics-title">No Personal Data</div>
+          Zero personally identifiable information used. All demographic data is aggregated at city level from public Census sources.
+        </div>
+
+        <div class="ethics-item">
+          <div class="ethics-title">Transparent Scoring</div>
+          Risk formula is fully disclosed: Risk = f(PCI label) + asset condition penalty. No black-box algorithms.
+        </div>
+
+        <div class="ethics-item">
+          <div class="ethics-title">Human-in-the-Loop</div>
+          This tool supports city planners — it does not replace engineering assessments. All outputs are labeled as decision-support, not final recommendations.
+        </div>
+
+        <div class="ethics-item">
+          <div class="ethics-title">Open License</div>
+          Cyvl data used under ODbL v1.0. Census data is public domain. All adaptations shared under same license.
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Data Sources -->
+    <div id="data-tab" class="tab-content">
+      <div class="section">
+        <h3>📚 Data Sources</h3>
+        <p style="font-size:0.76rem;color:#64748b;margin-bottom:12px">All sources documented for fact-checking and journalistic verification.</p>
+
+        <div class="source-item">
+          <div class="source-title">Cyvl Inc. — Beverly MA Infrastructure</div>
+          <div style="color:#94a3b8;font-size:0.8rem;margin:3px 0">Pavement condition (PCI scores), above-ground asset inventory, traffic signs. 168 miles, 95,000+ data points.</div>
+          <div class="source-meta">URL: dcygqrjfsypox.cloudfront.net/cyvl_public_data/11_2025/beverly_data</div>
+          <span class="source-badge badge-green">ODbL v1.0 © Cyvl Inc.</span>
+        </div>
+
+        <div class="source-item">
+          <div class="source-title">U.S. Census Bureau — ACS 5-Year 2023</div>
+          <div style="color:#94a3b8;font-size:0.8rem;margin:3px 0">Foreign-born population (DP05), median household income (DP03) for Beverly MA and Lawrence MA.</div>
+          <div class="source-meta">URL: api.census.gov/data/2023/acs/acs5/profile</div>
+          <span class="source-badge badge-blue">Public Domain</span>
+        </div>
+
+        <div class="source-item">
+          <div class="source-title">MassINC — Gateway Cities Definition</div>
+          <div style="color:#94a3b8;font-size:0.8rem;margin:3px 0">26 designated Gateway Cities in Massachusetts used for equity comparison context.</div>
+          <div class="source-meta">massinc.org/our-work/gateway-cities</div>
+          <span class="source-badge badge-blue">Public Reference</span>
+        </div>
+
+        <div class="source-item">
+          <div class="source-title">AI Analysis — Google Gemini</div>
+          <div style="color:#94a3b8;font-size:0.8rem;margin:3px 0">Street-level explanations generated by Gemini LLM using structured Cyvl data as input. All outputs are AI-generated and should be verified before use in official planning decisions.</div>
+          <span class="source-badge badge-green">Disclosed AI Use</span>
+        </div>
+
+        <div class="source-item">
+          <div class="source-title">Voice Narration — ElevenLabs</div>
+          <div style="color:#94a3b8;font-size:0.8rem;margin:3px 0">Text-to-speech narration of top infrastructure insight using ElevenLabs API.</div>
+          <span class="source-badge badge-blue">AI-Generated Audio</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end sidebar -->
+</div>
+
+<footer>
+  © Cyvl Inc. (ODbL) · U.S. Census ACS 2023 · AI: Google Gemini · Built at CivicHacks 2026 · StreetSafe Equity Lens
+</footer>
+
+<audio id="voice-audio" src="/api/voice"></audio>
+
+<script>
+const API = "";
+
+// Tab switching
+function switchTab(id, el) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  el.classList.add('active');
+}
+
+// Loading bar
+function setLoading(pct) {
+  document.getElementById('loading-bar').style.width = pct + '%';
+}
+
+// Map
+const map = L.map('map').setView([42.5584, -70.8800], 14);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors', maxZoom: 19
+}).addTo(map);
+
+// Load segments
+setLoading(20);
+fetch(`${API}/api/segments`)
+  .then(r => r.json())
+  .then(geojson => {
+    setLoading(60);
+    const filtered = {
+      type: "FeatureCollection",
+      features: geojson.features.filter(f => f.properties.risk_score > 3)
+    };
+    L.geoJSON(filtered, {
+      style: f => ({ color: f.properties.color, weight: 4, opacity: 0.85 }),
+      onEachFeature: (f, layer) => {
+        const p = f.properties;
+        layer.bindTooltip(
+          `<b>${p.street}</b><br>Risk: ${p.risk_score}/10 · PCI: ${p.pci ?? 'N/A'} (${p.pci_label})`,
+          {sticky: true}
+        );
+        layer.on('click', () => {
+          explainStreet(p);
+          // Switch to map tab to show analysis
+          switchTab('map-tab', document.querySelectorAll('.tab')[0]);
+        });
+      }
+    }).addTo(map);
+    setLoading(100);
+    setTimeout(() => setLoading(0), 500);
+  })
+  .catch(e => { console.error(e); setLoading(0); });
+
+// Explain street
+function explainStreet(props) {
+  const box = document.getElementById('explain-box');
+  box.innerHTML = '<span class="loading">🤖 Analyzing street conditions...</span>';
+  fetch(`${API}/api/explain`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      street: props.street, pci: props.pci ?? 50,
+      pci_label: props.pci_label, condition: props.condition,
+      risk_score: props.risk_score,
+    })
+  })
+  .then(r => r.json())
+  .then(d => { box.innerText = d.explanation; })
+  .catch(() => { box.innerText = "Error getting analysis. Please try again."; });
+}
+
+// Top 5
+fetch(`${API}/api/top5`)
+  .then(r => r.json())
+  .then(streets => {
+    const badgeColor = s => s > 7 ? '#ef4444' : s > 5 ? '#f97316' : s > 3 ? '#eab308' : '#22c55e';
+    // Store streets globally to avoid JSON-in-HTML issues
+    window.top5Streets = streets;
+    document.getElementById('top5-list').innerHTML = streets.map((s, i) => `
+      <div class="street-item" onclick="flyAndExplain(${i})">
+        <span class="risk-badge" style="background:${badgeColor(s.risk_score)};color:#000">${s.risk_score}/10</span>
+        <div class="street-name">${i+1}. ${s.street}</div>
+        <div class="street-meta">PCI: ${s.pci ?? 'N/A'} · ${s.pci_label}</div>
+      </div>
+    `).join('');
+  });
+
+function flyAndExplain(idx) {
+  const s = window.top5Streets[idx];
+  if (!s) return;
+  if (s.lat && s.lon) map.flyTo([s.lat, s.lon], 17, {duration: 1.5});
+  explainStreet(s);
+  switchTab('map-tab', document.querySelectorAll('.tab')[0]);
+}
+
+// Equity
+fetch(`${API}/api/equity`)
+  .then(r => r.json())
+  .then(d => {
+    if (!d.beverly) return;
+    document.getElementById('equity-content').innerHTML = `
+      <div class="equity-card">
+        <h3>Beverly vs Lawrence Comparison</h3>
+        <div class="equity-row">
+          <div class="eq-city">
+            <div class="city-name">Beverly, MA</div>
+            <div class="city-val">${d.beverly.foreign_born_pct?.toFixed(1)}%</div>
+            <div class="city-sub">foreign-born</div>
+            <div class="city-val" style="font-size:0.9rem;margin-top:6px">$${Number(d.beverly.median_household_income).toLocaleString()}</div>
+            <div class="city-sub">median income</div>
+          </div>
+          <div style="color:#475569;align-self:center;font-size:1.4rem">⚖️</div>
+          <div class="eq-city">
+            <div class="city-name">Lawrence, MA ⭐</div>
+            <div class="city-val">${d.lawrence.foreign_born_pct?.toFixed(1)}%</div>
+            <div class="city-sub">foreign-born</div>
+            <div class="city-val" style="font-size:0.9rem;margin-top:6px">$${Number(d.lawrence.median_household_income).toLocaleString()}</div>
+            <div class="city-sub">median income</div>
+          </div>
+        </div>
+        <div class="equity-insight">${d.insight}</div>
+        <div style="font-size:0.7rem;color:#475569;margin-top:6px">⭐ MassINC-designated Gateway City</div>
+      </div>
+    `;
+  });
+
+// Voice
+function playVoice() {
+  const a = document.getElementById('voice-audio');
+  a.play().catch(() => alert('Voice not ready — ensure server has started fully.'));
+}
+</script>
+</body>
+</html>
